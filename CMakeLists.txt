@@ -67,7 +67,7 @@ set(USD_LIBS
   libvt.dylib
 )
 if (Python_FOUND)
-  list(APPEND USD_LIBS "${USD_DIR}/lib/libboost_python.dylib")
+  list(APPEND USD_LIBS "${USD_DIR}/lib/libboost_python39.dylib")
 endif (Python_FOUND)
 else ()
 set(USD_LIBS
@@ -85,7 +85,7 @@ set(USD_LIBS
   libvt.so
 )
 if (Python_FOUND)
-  list(APPEND USD_LIBS "${USD_DIR}/lib/libboost_python.so")
+  list(APPEND USD_LIBS "${USD_DIR}/lib/libboost_python39.so")
 endif (Python_FOUND)
 endif ()
 
