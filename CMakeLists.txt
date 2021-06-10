@@ -27,9 +27,9 @@ endif (EXISTS "${USD_DIR}/lib/python/")
 set(USD_INCLUDE_DIRS
   "${USD_DIR}/include"
   "${USD_DIR}/include/boost-1_61"
-# Visual Studio 2017 requires boost 1.65.1.
   "${USD_DIR}/include/boost-1_65_1"
   "${USD_DIR}/include/boost-1_70"
+  "${USD_DIR}/include/boost"
   ${Python_INCLUDE_DIRS}
 )
 
