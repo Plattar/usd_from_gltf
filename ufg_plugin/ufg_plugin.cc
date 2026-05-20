@@ -18,12 +18,20 @@
 
 #include "convert/converter.h"
 #include "gltf/validate.h"
+#include "pxr/base/tf/token.h"
 #include "pxr/usd/sdf/layer.h"
-#include "pxr/usd/usd/usdaFileFormat.h"
 
 PXR_NAMESPACE_OPEN_SCOPE
 
 TF_DEFINE_PUBLIC_TOKENS(UsdGltfFileFormatTokens, USDGLTF_FILE_FORMAT_TOKENS);
+
+namespace {
+// The USDA file format identifier. We look it up by token rather than by
+// pulling in the header, because the header moved between USD versions
+// (pxr/usd/usd/usdaFileFormat.h → pxr/usd/sdf/usdaFileFormat.h around 24.05)
+// and the identifier "usda" has been stable across all of them.
+const TfToken kUsdaFileFormatId("usda");
+}  // namespace
 
 TF_REGISTRY_FUNCTION(TfType) {
   SDF_DEFINE_FILE_FORMAT(UsdGltfFileFormat, SdfFileFormat);
@@ -124,14 +132,14 @@ bool UsdGltfFileFormat::ReadFromString(SdfLayer* /*layer*/,
 bool UsdGltfFileFormat::WriteToString(const SdfLayer& layer,
     std::string* str, const std::string& comment) const {
   // Write as USDA because we don't implement GLTF export.
-  return SdfFileFormat::FindById(UsdUsdaFileFormatTokens->Id)
+  return SdfFileFormat::FindById(kUsdaFileFormatId)
       ->WriteToString(layer, str, comment);
 }
 
 bool UsdGltfFileFormat::WriteToStream(
     const SdfSpecHandle& spec, std::ostream& out, size_t indent) const {
   // Write as USDA because we don't implement GLTF export.
-  return SdfFileFormat::FindById(UsdUsdaFileFormatTokens->Id)
+  return SdfFileFormat::FindById(kUsdaFileFormatId)
       ->WriteToStream(spec, out, indent);
 }
 

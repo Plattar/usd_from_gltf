@@ -137,6 +137,26 @@ else ()
       set(Python3_INCLUDE_DIRS "${_ufg_py_include}")
     endif ()
   endif ()
+  if (NOT Python3_LIBRARIES AND Python3_Interpreter_FOUND)
+    # Find libpython via sysconfig — Python3::Python may not be defined if the
+    # Development component reported NOTFOUND.
+    execute_process(
+      COMMAND "${Python3_EXECUTABLE}" -c
+        "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))"
+      OUTPUT_VARIABLE _ufg_py_libdir
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    execute_process(
+      COMMAND "${Python3_EXECUTABLE}" -c
+        "import sysconfig; print(sysconfig.get_config_var('LDLIBRARY'))"
+      OUTPUT_VARIABLE _ufg_py_ldlibrary
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    if (_ufg_py_libdir AND _ufg_py_ldlibrary
+        AND EXISTS "${_ufg_py_libdir}/${_ufg_py_ldlibrary}")
+      set(Python3_LIBRARIES "${_ufg_py_libdir}/${_ufg_py_ldlibrary}")
+    endif ()
+  endif ()
   if (Python3_INCLUDE_DIRS)
     target_include_directories(ufg_usd_libs INTERFACE ${Python3_INCLUDE_DIRS})
     message(STATUS
@@ -146,6 +166,14 @@ else ()
       "Python development headers not found. If your OpenUSD install was built "
       "with PXR_PYTHON_SUPPORT_ENABLED, the build will fail on <pyconfig.h>. "
       "Install python3-dev or pass -DPython3_ROOT_DIR=<prefix>.")
+  endif ()
+  if (Python3_LIBRARIES)
+    # USD's headers materialize references to libpython symbols (TfPyLock etc.)
+    # in our translation units. With the linker's default --no-add-needed
+    # policy, libpython must appear on the link line even though USD's .so
+    # transitively depends on it.
+    target_link_libraries(ufg_usd_libs INTERFACE ${Python3_LIBRARIES})
+    message(STATUS "OpenUSD: linking libpython (${Python3_LIBRARIES}).")
   endif ()
 endif ()
 
