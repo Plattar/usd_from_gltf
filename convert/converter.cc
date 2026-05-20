@@ -30,9 +30,11 @@
 #include "pxr/usd/usd/stage.h"
 #include "pxr/usd/usdGeom/mesh.h"
 #include "pxr/usd/usdGeom/metrics.h"
+#include "pxr/usd/usdGeom/primvarsAPI.h"
 #include "pxr/usd/usdGeom/scope.h"
 #include "pxr/usd/usdGeom/tokens.h"
 #include "pxr/usd/usdGeom/xform.h"
+#include "pxr/usd/usdShade/connectableAPI.h"
 #include "pxr/usd/usdShade/materialBindingAPI.h"
 #include "pxr/usd/usdSkel/animation.h"
 #include "pxr/usd/usdSkel/bindingAPI.h"
@@ -46,6 +48,7 @@ using PXR_NS::TfMakeValidIdentifier;
 using PXR_NS::UsdAttribute;
 using PXR_NS::UsdGeomMesh;
 using PXR_NS::UsdGeomPrimvar;
+using PXR_NS::UsdGeomPrimvarsAPI;
 using PXR_NS::UsdGeomScope;
 using PXR_NS::UsdGeomSetStageUpAxis;
 using PXR_NS::UsdGeomTokens;
@@ -479,7 +482,8 @@ void Converter::CreateDebugBoneMesh(const SdfPath& parent_path,
         material_path.AppendElementString("pbr_shader");
     UsdShadeShader pbr_shader = UsdShadeShader::Define(stage, pbr_shader_path);
     pbr_shader.CreateIdAttr(VtValue(kTokPreviewSurface));
-    usd_material.CreateSurfaceOutput().ConnectToSource(pbr_shader, kTokSurface);
+    usd_material.CreateSurfaceOutput().ConnectToSource(
+        pbr_shader.ConnectableAPI(), kTokSurface);
     pbr_shader.CreateInput(kTokInputUseSpecular, SdfValueTypeNames->Int).Set(1);
     pbr_shader.CreateInput(kTokInputSpecularColor, SdfValueTypeNames->Color3f)
         .Set(kColorBlack);
@@ -507,7 +511,8 @@ void Converter::CreateDebugBoneMesh(const SdfPath& parent_path,
   usd_mesh.GetFaceVertexIndicesAttr().Set(tri_indices);
   usd_mesh.GetFaceVertexCountsAttr().Set(kTriCounts);
   usd_mesh.GetExtentAttr().Set(extent);
-  UsdShadeMaterialBindingAPI(usd_mesh.GetPrim()).Bind(debug_bone_material_);
+  UsdShadeMaterialBindingAPI::Apply(usd_mesh.GetPrim())
+      .Bind(debug_bone_material_);
 }
 
 void Converter::CreateSkeleton(const SdfPath& path, const SkinInfo& skin_info) {
@@ -680,9 +685,10 @@ void Converter::CreateMesh(
           uv = &transformed_uv;
         }
         const TfToken uvset_tok(AppendNumber("st", number));
-        const UsdGeomPrimvar uvs_primvar = usd_mesh.CreatePrimvar(
-            uvset_tok, SdfValueTypeNames->TexCoord2fArray,
-            UsdGeomTokens->vertex);
+        const UsdGeomPrimvar uvs_primvar =
+            UsdGeomPrimvarsAPI(usd_mesh).CreatePrimvar(
+                uvset_tok, SdfValueTypeNames->TexCoord2fArray,
+                UsdGeomTokens->vertex);
         SetVertexValues(uvs_primvar, *uv, emulate_double_sided);
       }
     }
@@ -731,7 +737,7 @@ void Converter::CreateMesh(
     // Set material.
     if (material) {
       usd_mesh.GetDoubleSidedAttr().Set(double_sided && !emulate_double_sided);
-      UsdShadeMaterialBindingAPI(usd_mesh.GetPrim())
+      UsdShadeMaterialBindingAPI::Apply(usd_mesh.GetPrim())
           .Bind(material_binding->material);
     }
 
@@ -755,7 +761,8 @@ void Converter::CreateMesh(
       UFG_ASSERT_LOGIC(index_it == joint_indices.data() + influence_total);
       UFG_ASSERT_LOGIC(weight_it == joint_weights.data() + influence_total);
 
-      const UsdSkelBindingAPI binding_api(usd_mesh.GetPrim());
+      const UsdSkelBindingAPI binding_api =
+          UsdSkelBindingAPI::Apply(usd_mesh.GetPrim());
       binding_api.CreateSkeletonRel().AddTarget(
           skinned_mesh_context->skeleton_path);
       binding_api.CreateAnimationSourceRel().AddTarget(
@@ -1073,10 +1080,10 @@ void Converter::CreateStage(const SdfLayerRefPtr& layer,
   UsdPrim prim = cc_.stage->DefinePrim(cc_.root_path, TfToken("Xform"));
   prim.SetAssetInfoByKey(TfToken("name"),
                          VtValue(cc_.root_path.GetElementString()));
-  UsdModelAPI(prim).SetKind(TfToken("component"));
+  UsdModelAPI::Apply(prim).SetKind(TfToken("component"));
   cc_.stage->SetDefaultPrim(prim);
 
-  UsdGeomSetStageUpAxis(cc_.stage, pxr::UsdGeomTokens->y);
+  UsdGeomSetStageUpAxis(cc_.stage, UsdGeomTokens->y);
 }
 
 void Converter::ConvertImpl(const ConvertSettings& settings, const Gltf& gltf,

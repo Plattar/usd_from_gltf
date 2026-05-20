@@ -61,7 +61,7 @@ UsdGltfFileFormat::UsdGltfFileFormat()
           UsdGltfFileFormatTokens->Id, UsdGltfFileFormatTokens->Version,
           UsdGltfFileFormatTokens->Target, UsdGltfFileFormatTokens->Id) {}
 
-UsdGltfFileFormat::~UsdGltfFileFormat() {}
+UsdGltfFileFormat::~UsdGltfFileFormat() = default;
 
 bool UsdGltfFileFormat::CanRead(const std::string& path) const {
   std::string src_dir, src_name;
@@ -79,20 +79,8 @@ bool UsdGltfFileFormat::CanRead(const std::string& path) const {
       &gltf, &logger);
 }
 
-#if OLD_FORMAT_PLUGIN_API
-bool UsdGltfFileFormat::Read(const SdfLayerBasePtr& layer_base,
-    const std::string& resolved_path, bool metadata_only) const {
-  SdfLayerHandle layer = TfDynamic_cast<SdfLayerHandle>(layer_base);
-  if (!TF_VERIFY(layer)) {
-    TF_RUNTIME_ERROR("Cannot create layer for GLTF file: %s",
-                     resolved_path.c_str());
-    return false;
-  }
-#else  // OLD_FORMAT_PLUGIN_API
 bool UsdGltfFileFormat::Read(SdfLayer* layer,
     const std::string& resolved_path, bool metadata_only) const {
-#endif  // OLD_FORMAT_PLUGIN_API
-
   UsdGltfFileFormatLogger logger;
 
   std::string src_dir, src_name;
@@ -106,7 +94,6 @@ bool UsdGltfFileFormat::Read(SdfLayer* layer,
 
   const ufg::ConvertSettings& settings = ufg::ConvertSettings::kDefault;
   Gltf gltf;
-  std::vector<GltfMessage> messages;
   const bool load_success = GltfLoadAndValidate(
       gltf_stream.get(), resolved_path.c_str(), settings.gltf_load_settings,
       &gltf, &logger);
@@ -127,40 +114,22 @@ bool UsdGltfFileFormat::Read(SdfLayer* layer,
   return true;
 }
 
-#if OLD_FORMAT_PLUGIN_API
-bool UsdGltfFileFormat::ReadFromString(const SdfLayerBasePtr& layer_base,
-    const std::string& str) const {
+bool UsdGltfFileFormat::ReadFromString(SdfLayer* /*layer*/,
+    const std::string& /*str*/) const {
   // GLTF can use multiple files and the reader assumes those files are on disk.
   TF_RUNTIME_ERROR("Cannot import GLTF from a string in memory.");
   return false;
 }
-#else  // OLD_FORMAT_PLUGIN_API
-bool UsdGltfFileFormat::ReadFromString(SdfLayer* layer,
-    const std::string& str) const {
-  // GLTF can use multiple files and the reader assumes those files are on disk.
-  TF_RUNTIME_ERROR("Cannot import GLTF from a string in memory.");
-  return false;
-}
-#endif  // OLD_FORMAT_PLUGIN_API
 
-#if OLD_FORMAT_PLUGIN_API
-bool UsdGltfFileFormat::WriteToString(const SdfLayerBase* layer_base,
-    std::string* str, const std::string& comment) const {
-  // Write as USDA because we don't implement GLTF export.
-  return SdfFileFormat::FindById(UsdUsdaFileFormatTokens->Id)
-      ->WriteToString(layer_base, str, comment);
-}
-#else  // OLD_FORMAT_PLUGIN_API
 bool UsdGltfFileFormat::WriteToString(const SdfLayer& layer,
     std::string* str, const std::string& comment) const {
   // Write as USDA because we don't implement GLTF export.
   return SdfFileFormat::FindById(UsdUsdaFileFormatTokens->Id)
       ->WriteToString(layer, str, comment);
 }
-#endif  // OLD_FORMAT_PLUGIN_API
 
 bool UsdGltfFileFormat::WriteToStream(
-    const SdfSpecHandle &spec, std::ostream& out, size_t indent) const {
+    const SdfSpecHandle& spec, std::ostream& out, size_t indent) const {
   // Write as USDA because we don't implement GLTF export.
   return SdfFileFormat::FindById(UsdUsdaFileFormatTokens->Id)
       ->WriteToStream(spec, out, indent);

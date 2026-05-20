@@ -12,14 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-find_package(json)
-if (NOT json_FOUND)
-  message(FATAL_ERROR "JSON package not found.")
-endif (NOT json_FOUND)
-
-include_directories(
-  ${json_INCLUDE_DIR}
-)
+# nlohmann/json: header-only. Found via its CMake package on most distros.
+# Fall back to a JSON_INCLUDE_DIR cache var if the package is not installed.
+find_package(nlohmann_json CONFIG QUIET)
+if (NOT nlohmann_json_FOUND)
+  if (NOT DEFINED JSON_INCLUDE_DIR)
+    message(FATAL_ERROR
+      "nlohmann_json not found via find_package. Install it (brew/apt/vcpkg) "
+      "or set -DJSON_INCLUDE_DIR=<dir containing nlohmann/json.hpp>.")
+  endif ()
+endif ()
 
 add_library(gltf
   internal_util.cc
@@ -48,6 +50,14 @@ add_library(gltf
   image_parsing.cc
   image_parsing.h
 )
+
+target_include_directories(gltf PUBLIC ${CMAKE_SOURCE_DIR})
+
+if (nlohmann_json_FOUND)
+  target_link_libraries(gltf PRIVATE nlohmann_json::nlohmann_json)
+else ()
+  target_include_directories(gltf PRIVATE "${JSON_INCLUDE_DIR}")
+endif ()
 
 file(GLOB GLTF_HEADERS "*.h")
 set_target_properties(gltf PROPERTIES PUBLIC_HEADER "${GLTF_HEADERS}")

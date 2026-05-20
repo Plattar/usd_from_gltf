@@ -32,22 +32,6 @@
 #include "pxr/usd/sdf/fileFormat.h"
 #include "pxr/base/tf/staticTokens.h"
 
-// There was a breaking change in the SdfFileFormat interface, somewhere between
-// patch versions 3 and 5.
-#if PXR_MAJOR_VERSION == 0 && PXR_MINOR_VERSION <= 19 && \
-    PXR_PATCH_VERSION < 5  // VERSION
-#define OLD_FORMAT_PLUGIN_API 1
-#define STREAMING_SUPPORTED 1
-#elif PXR_MAJOR_VERSION == 0 && PXR_MINOR_VERSION <= 19 && \
-    PXR_PATCH_VERSION < 7  // VERSION
-#define OLD_FORMAT_PLUGIN_API 0
-#define STREAMING_SUPPORTED 1
-#else  // VERSION
-// _IsStreamingLayer was removed from SdfFileFormat in version 0.19.7.
-#define OLD_FORMAT_PLUGIN_API 0
-#define STREAMING_SUPPORTED 0
-#endif  // VERSION
-
 PXR_NAMESPACE_OPEN_SCOPE
 
 #define USDGLTF_FILE_FORMAT_TOKENS \
@@ -58,47 +42,24 @@ PXR_NAMESPACE_OPEN_SCOPE
 TF_DECLARE_PUBLIC_TOKENS(UsdGltfFileFormatTokens, USDGLTF_FILE_FORMAT_TOKENS);
 
 TF_DECLARE_WEAK_AND_REF_PTRS(UsdGltfFileFormat);
-TF_DECLARE_WEAK_AND_REF_PTRS(SdfLayerBase);
 
 class UsdGltfFileFormat : public SdfFileFormat {
  public:
   bool CanRead(const std::string &file) const override;
-#if OLD_FORMAT_PLUGIN_API
-  bool Read(const SdfLayerBasePtr& layer_base,
-      const std::string& resolved_path, bool metadata_only) const override;
-  bool ReadFromString(const SdfLayerBasePtr& layer_base,
-      const std::string& str) const override;
-  bool WriteToString(const SdfLayerBase* layer_base,
-      std::string* str,
-      const std::string& comment = std::string()) const override;
-#else   // OLD_FORMAT_PLUGIN_API
   bool Read(SdfLayer* layer,
-      const std::string& resolved_path, bool metadata_only) const override;
+            const std::string& resolved_path,
+            bool metadata_only) const override;
   bool ReadFromString(SdfLayer* layer, const std::string& str) const override;
   bool WriteToString(const SdfLayer& layer,
-      std::string* str,
-      const std::string& comment = std::string()) const override;
-#endif  // OLD_FORMAT_PLUGIN_API
+                     std::string* str,
+                     const std::string& comment = std::string()) const override;
   bool WriteToStream(const SdfSpecHandle& spec, std::ostream& out,
-      size_t indent) const override;
+                     size_t indent) const override;
 
  protected:
   SDF_FILE_FORMAT_FACTORY_ACCESS;
   ~UsdGltfFileFormat() override;
   UsdGltfFileFormat();
-
- private:
-#if STREAMING_SUPPORTED
-#if OLD_FORMAT_PLUGIN_API
-  bool _IsStreamingLayer(const SdfLayerBase& layer) const override {
-    return false;
-  }
-#else  // OLD_FORMAT_PLUGIN_API
-  bool _IsStreamingLayer(const SdfLayer& layer) const override {
-    return false;
-  }
-#endif  // OLD_FORMAT_PLUGIN_API
-#endif  // STREAMING_SUPPORTED
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

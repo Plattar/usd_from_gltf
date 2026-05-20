@@ -12,120 +12,79 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required (VERSION 3.0)
-project (usd_from_gltf)
+cmake_minimum_required(VERSION 3.16)
+project(usd_from_gltf LANGUAGES CXX)
 
-# We don't use Python in this tool, but when the USD library is built with
-# PXR_PYTHON_SUPPORT_ENABLED it references it anyway.
-if (EXISTS "${USD_DIR}/lib/python/")
-  find_package(Python COMPONENTS Development)
-  if (NOT Python_FOUND)
-    message(FATAL_ERROR "Missing python libs.")
-  endif (NOT Python_FOUND)
-endif (EXISTS "${USD_DIR}/lib/python/")
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(USD_INCLUDE_DIRS
-  "${USD_DIR}/include"
-  "${USD_DIR}/include/boost-1_61"
-  "${USD_DIR}/include/boost-1_65_1"
-  "${USD_DIR}/include/boost-1_70"
-  "${USD_DIR}/include/boost"
-  ${Python_INCLUDE_DIRS}
-)
-
-link_directories(
-  "${USD_DIR}/lib"
-  ${Python_LIBRARY_DIRS}
-)
-
-if (MSVC)
-set(USD_LIBS
-  gf.lib
-  plug.lib
-  sdf.lib
-  tf.lib
-  usd.lib
-  usdGeom.lib
-  usdShade.lib
-  usdSkel.lib
-  usdUtils.lib
-  vt.lib
-)
-elseif (APPLE)
-set(USD_LIBS
-  ${Python_LIBRARIES}
-  -lpthread
-  libgf.dylib
-  libplug.dylib
-  libsdf.dylib
-  libtf.dylib
-  libusd.dylib
-  libusdGeom.dylib
-  libusdShade.dylib
-  libusdSkel.dylib
-  libusdUtils.dylib
-  libvt.dylib
-)
-if (Python_FOUND)
-  list(APPEND USD_LIBS "${USD_DIR}/lib/libboost_python39.dylib")
-endif (Python_FOUND)
-else ()
-set(USD_LIBS
-  ${Python_LIBRARIES}
-  -lpthread
-  libgf.so
-  libplug.so
-  libsdf.so
-  libtf.so
-  libusd.so
-  libusdGeom.so
-  libusdShade.so
-  libusdSkel.so
-  libusdUtils.so
-  libvt.so
-)
-if (Python_FOUND)
-  list(APPEND USD_LIBS "${USD_DIR}/lib/libboost_python39.so")
-endif (Python_FOUND)
-endif ()
-
-if (MSVC)
-add_compile_definitions(
-    _CRT_SECURE_NO_WARNINGS
-)
-add_compile_options(
-  /wd4996 # Call to 'std::copy' with parameters that may be unsafe
-)
-
-# Use the release runtime for all builds so we can compile the library in Debug
-# without having to recompile dependencies.
-set(CompilerFlags
-  CMAKE_CXX_FLAGS
-  CMAKE_CXX_FLAGS_DEBUG
-  CMAKE_CXX_FLAGS_RELEASE
-  CMAKE_C_FLAGS
-  CMAKE_C_FLAGS_DEBUG
-  CMAKE_C_FLAGS_RELEASE
-)
-foreach(CompilerFlag ${CompilerFlags})
-  string(REPLACE "/MDd" "/MD" ${CompilerFlag} "${${CompilerFlag}}")
-  string(REPLACE "/RTC1" "" ${CompilerFlag} "${${CompilerFlag}}")
-endforeach()
-
-else (MSVC)
-add_compile_options(
-  -Wno-deprecated # Silence deprecation warnings due to USD headers.
-  -std=c++14
-)
-
-endif (MSVC)
-
-# PIC is necessary for building the plugin shared library.
+# PIC is required for the import plugin (shared lib) and harmless elsewhere.
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# Set RPATH to locate USD shared libraries on Linux/OSX.
-set(CMAKE_INSTALL_RPATH "${USD_DIR}/lib")
+# ----- Locate OpenUSD -----
+#
+# USD 26.05 ships a CMake package config at <prefix>/pxrConfig.cmake. Point
+# USD_DIR at the install prefix (e.g. -DUSD_DIR=/opt/openusd-26.05) or set
+# CMAKE_PREFIX_PATH directly.
+if (DEFINED USD_DIR AND NOT pxr_DIR)
+  set(pxr_DIR "${USD_DIR}" CACHE PATH "USD install prefix" FORCE)
+  list(APPEND CMAKE_PREFIX_PATH "${USD_DIR}")
+endif ()
+find_package(pxr CONFIG REQUIRED)
+
+# RPATH so the binaries can find USD's shared libs on Linux/OSX.
+if (APPLE)
+  list(APPEND CMAKE_INSTALL_RPATH "@loader_path/../lib" "${PXR_CMAKE_DIR}/lib")
+elseif (UNIX)
+  list(APPEND CMAKE_INSTALL_RPATH "$ORIGIN/../lib" "${PXR_CMAKE_DIR}/lib")
+endif ()
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
+# The USD libraries needed across this project. We define an interface target
+# so subdirectories can simply link `usd_from_gltf::usd_libs`.
+add_library(ufg_usd_libs INTERFACE)
+add_library(usd_from_gltf::usd_libs ALIAS ufg_usd_libs)
+target_link_libraries(ufg_usd_libs INTERFACE
+  arch
+  gf
+  plug
+  sdf
+  tf
+  usd
+  usdGeom
+  usdShade
+  usdSkel
+  usdUtils
+  vt
+)
+
+# ----- Platform settings -----
+if (MSVC)
+  add_compile_definitions(
+    _CRT_SECURE_NO_WARNINGS
+    NOMINMAX
+  )
+  add_compile_options(
+    /wd4996 # 'std::copy' marked as unsafe
+    /wd4003 # not enough actual parameters for macro
+    /wd4244 # possible loss of data
+    /wd4267 # possible loss of data
+    /wd4305 # truncation 'double' -> 'float'
+  )
+  # Force release CRT so we can build this lib in Debug without rebuilding deps.
+  foreach (flag
+    CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
+    CMAKE_C_FLAGS   CMAKE_C_FLAGS_DEBUG   CMAKE_C_FLAGS_RELEASE
+  )
+    string(REPLACE "/MDd" "/MD" ${flag} "${${flag}}")
+    string(REPLACE "/RTC1" "" ${flag} "${${flag}}")
+  endforeach ()
+else ()
+  add_compile_options(
+    -Wno-deprecated # Silence deprecation warnings from USD headers.
+  )
+endif ()
 
 add_subdirectory(common)
 add_subdirectory(convert)

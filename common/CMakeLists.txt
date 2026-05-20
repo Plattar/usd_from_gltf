@@ -12,11 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-include_directories(
-  ..
-  ${USD_INCLUDE_DIRS}
-)
-
 add_library(common
   common.h
   common_util.h
@@ -29,9 +24,13 @@ add_library(common
   platform.h
 )
 
+target_include_directories(common PUBLIC ${CMAKE_SOURCE_DIR})
+
+target_link_libraries(common
+  PUBLIC gltf usd_from_gltf::usd_libs
+)
+
 file(GLOB COMMON_HEADERS "*.h")
 set_target_properties(common PROPERTIES PUBLIC_HEADER "${COMMON_HEADERS}")
-
-target_link_libraries(common gltf)
 
 install(TARGETS common EXPORT ufglib DESTINATION lib/ufg PUBLIC_HEADER DESTINATION include/ufg/common)

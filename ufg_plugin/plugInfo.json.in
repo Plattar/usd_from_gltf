@@ -13,7 +13,7 @@
                     }
                 }
             },
-            "LibraryPath": "ufg_plugin.dll",
+            "LibraryPath": "@UFG_PLUGIN_LIBRARY_FILENAME@",
             "Name": "ufg_plugin",
             "Type": "library"
         }

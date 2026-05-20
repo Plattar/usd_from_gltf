@@ -1,34 +1,63 @@
-find_package(draco)
-if (NOT draco_FOUND)
-  message(FATAL_ERROR "Draco package not found.")
-endif (NOT draco_FOUND)
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-find_package(giflib)
-if (NOT giflib_FOUND)
-  message(FATAL_ERROR "Giflib package not found.")
-endif (NOT giflib_FOUND)
+# Locate image and mesh decoding libraries via the system / vcpkg / brew /
+# build-system-installed CMake configs. Hint vars (STB_IMAGE_INCLUDE_DIR,
+# DRACO_DIR, GIFLIB_INCLUDE_DIR, GIFLIB_LIBRARY) can override.
 
-find_package(stb_image)
-if (NOT stb_image_FOUND)
-  message(FATAL_ERROR "STB Image package not found.")
-endif (NOT stb_image_FOUND)
+find_package(PNG REQUIRED)
+find_package(JPEG QUIET) # libjpeg
+find_package(ZLIB REQUIRED)
 
-get_filename_component(PARENT_DIR ${stb_image_LIBRARY_DIR} DIRECTORY)
-if (APPLE)
-  set(ZLIB_LIBRARIES ${PARENT_DIR}/src/zlib-1.2.11/libz.dylib)
-elseif (WIN32)
-  set(ZLIB_LIBRARIES ${PARENT_DIR}/src/zlib-1.2.11/Release/zlib.lib)
-else ()
-  set(ZLIB_LIBRARIES ${PARENT_DIR}/src/zlib-1.2.11/libz.so)
+# libjpeg-turbo: prefer the TurboJPEG C API (turbojpeg.h). Most distros ship a
+# pkg-config file 'libturbojpeg' or a CMake export.
+find_library(TURBOJPEG_LIBRARY NAMES turbojpeg libturbojpeg)
+find_path(TURBOJPEG_INCLUDE_DIR NAMES turbojpeg.h)
+if (NOT TURBOJPEG_LIBRARY OR NOT TURBOJPEG_INCLUDE_DIR)
+  message(FATAL_ERROR
+    "libjpeg-turbo (TurboJPEG) not found. Install it (brew install jpeg-turbo, "
+    "apt install libturbojpeg0-dev) or set TURBOJPEG_LIBRARY/TURBOJPEG_INCLUDE_DIR.")
 endif ()
 
-include_directories(
-  ..
-  ${USD_INCLUDE_DIRS}
-  ${draco_INCLUDE_DIR}/..
-  ${giflib_INCLUDE_DIR}
-  ${stb_image_INCLUDE_DIR}
-)
+# giflib: header-only-ish C library, no standard CMake export.
+find_library(GIFLIB_LIBRARY NAMES gif libgif)
+find_path(GIFLIB_INCLUDE_DIR NAMES gif_lib.h)
+if (NOT GIFLIB_LIBRARY OR NOT GIFLIB_INCLUDE_DIR)
+  message(FATAL_ERROR
+    "giflib not found. Install it (brew install giflib, apt install libgif-dev) "
+    "or set GIFLIB_LIBRARY/GIFLIB_INCLUDE_DIR.")
+endif ()
+
+# stb_image: single-header. Some distros ship a stb pkg.
+find_path(STB_IMAGE_INCLUDE_DIR NAMES stb_image.h PATH_SUFFIXES stb)
+if (NOT STB_IMAGE_INCLUDE_DIR)
+  message(FATAL_ERROR
+    "stb_image.h not found. Install the 'stb' package or set "
+    "STB_IMAGE_INCLUDE_DIR to the directory containing stb_image.h.")
+endif ()
+
+# Draco mesh compression. Upstream ships draco-config.cmake from ~1.3.6+.
+find_package(draco CONFIG QUIET)
+if (NOT draco_FOUND)
+  find_library(DRACO_LIBRARY NAMES draco)
+  find_path(DRACO_INCLUDE_DIR NAMES draco/compression/decode.h)
+  if (NOT DRACO_LIBRARY OR NOT DRACO_INCLUDE_DIR)
+    message(FATAL_ERROR
+      "Draco not found. Install via brew (draco) / vcpkg / source build, "
+      "or set DRACO_LIBRARY/DRACO_INCLUDE_DIR.")
+  endif ()
+endif ()
 
 add_library(process
   image_png.h
@@ -58,49 +87,31 @@ add_library(process
   image_png.cc
 )
 
+target_include_directories(process
+  PUBLIC ${CMAKE_SOURCE_DIR}
+  PRIVATE
+    "${STB_IMAGE_INCLUDE_DIR}"
+    "${GIFLIB_INCLUDE_DIR}"
+    "${TURBOJPEG_INCLUDE_DIR}"
+)
+
+target_link_libraries(process
+  PUBLIC common
+  PRIVATE
+    PNG::PNG
+    ZLIB::ZLIB
+    "${TURBOJPEG_LIBRARY}"
+    "${GIFLIB_LIBRARY}"
+)
+
+if (draco_FOUND)
+  target_link_libraries(process PRIVATE draco::draco)
+else ()
+  target_include_directories(process PRIVATE "${DRACO_INCLUDE_DIR}")
+  target_link_libraries(process PRIVATE "${DRACO_LIBRARY}")
+endif ()
+
 file(GLOB PROCESS_HEADERS "*.h")
 set_target_properties(process PROPERTIES PUBLIC_HEADER "${PROCESS_HEADERS}")
-
-# Libpng and libturbojpeg do not define library directories. We need to search
-# for them because on different distros, they appear in different locations.
-set(INSTALLED_LIBRARY_DIR ${stb_image_LIBRARY_DIR})
-find_library(PNG_LIBRARY
-  NAMES libpng16.a libpng16_static.lib
-  HINTS ${stb_image_LIBRARY_DIR} ${PARENT_DIR}/lib64
-)
-if (NOT PNG_LIBRARY)
-  message(FATAL_ERROR "Libpng not found.")
-endif (NOT PNG_LIBRARY)
-
-find_library(TURBOJPEG_LIBRARY
-  NAMES libturbojpeg.a turbojpeg-static.lib
-  HINTS ${stb_image_LIBRARY_DIR} ${PARENT_DIR}/lib64
-)
-if (NOT TURBOJPEG_LIBRARY)
-  message(FATAL_ERROR "Libturbojpeg not found.")
-endif (NOT TURBOJPEG_LIBRARY)
-
-if (MSVC)
-target_link_libraries(process
-  common
-  "${draco_LIBRARY_DIR}/dracodec.lib"
-  "${giflib_LIBRARY_DIR}/giflib.lib"
-  "${stb_image_LIBRARY_DIR}/stb_image.lib"
-  "${PNG_LIBRARY}"
-  "${ZLIB_LIBRARIES}"
-  "${TURBOJPEG_LIBRARY}"
-)
-else (MSVC)
-
-target_link_libraries(process
-  common
-  "${draco_LIBRARY_DIR}/libdracodec.a"
-  "${giflib_LIBRARY_DIR}/libgiflib.a"
-  "${stb_image_LIBRARY_DIR}/libstb_image.a"
-  "${PNG_LIBRARY}"
-  "${ZLIB_LIBRARIES}"
-  "${TURBOJPEG_LIBRARY}"
-)
-endif (MSVC)
 
 install(TARGETS process EXPORT ufglib DESTINATION lib/ufg PUBLIC_HEADER DESTINATION include/ufg/process)

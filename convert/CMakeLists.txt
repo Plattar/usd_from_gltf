@@ -12,11 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-include_directories(
-  ..
-  ${USD_INCLUDE_DIRS}
-)
-
 add_library(convert
   tokens.cc
   tokens.h
@@ -34,9 +29,13 @@ add_library(convert
   texturator.h
 )
 
+target_include_directories(convert PUBLIC ${CMAKE_SOURCE_DIR})
+
+target_link_libraries(convert
+  PUBLIC process usd_from_gltf::usd_libs
+)
+
 file(GLOB CONVERT_HEADERS "*.h")
 set_target_properties(convert PROPERTIES PUBLIC_HEADER "${CONVERT_HEADERS}")
-
-target_link_libraries(convert process)
 
 install(TARGETS convert EXPORT ufglib DESTINATION lib/ufg PUBLIC_HEADER DESTINATION include/ufg/convert)

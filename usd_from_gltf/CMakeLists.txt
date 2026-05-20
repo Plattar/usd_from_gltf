@@ -12,16 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-find_package(tclap)
-if (NOT tclap_FOUND)
-  message(FATAL_ERROR "TCLAP package not found.")
-endif (NOT tclap_FOUND)
-
-include_directories(
-  ..
-  ${USD_INCLUDE_DIRS}
-  ${tclap_INCLUDE_DIR}
-)
+# TCLAP is header-only. Most package managers ship a CMake config; fall back to
+# a TCLAP_INCLUDE_DIR cache var when not available.
+find_package(TCLAP CONFIG QUIET)
+if (NOT TCLAP_FOUND)
+  find_path(TCLAP_INCLUDE_DIR NAMES tclap/CmdLine.h)
+  if (NOT TCLAP_INCLUDE_DIR)
+    message(FATAL_ERROR
+      "TCLAP not found. Install it (brew install tclap, apt install libtclap-dev) "
+      "or set -DTCLAP_INCLUDE_DIR=<dir containing tclap/CmdLine.h>.")
+  endif ()
+endif ()
 
 add_executable(usd_from_gltf
   args.cc
@@ -30,8 +31,13 @@ add_executable(usd_from_gltf
 )
 
 target_link_libraries(usd_from_gltf
-  convert
-  ${USD_LIBS}
+  PRIVATE convert usd_from_gltf::usd_libs
 )
+
+if (TCLAP_FOUND)
+  target_link_libraries(usd_from_gltf PRIVATE TCLAP::TCLAP)
+else ()
+  target_include_directories(usd_from_gltf PRIVATE "${TCLAP_INCLUDE_DIR}")
+endif ()
 
 install(TARGETS usd_from_gltf DESTINATION bin)

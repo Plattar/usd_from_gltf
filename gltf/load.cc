@@ -21,7 +21,7 @@
 #include <limits>
 
 #include "internal_util.h"  // NOLINT: Silence relative path warning.
-#include "json.hpp"
+#include <nlohmann/json.hpp>
 
 namespace {
 using Json = nlohmann::json;

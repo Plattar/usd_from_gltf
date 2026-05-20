@@ -12,40 +12,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-include_directories(
-  ..
-  ${USD_INCLUDE_DIRS}
-)
-
 add_library(ufg_plugin SHARED
   ufg_plugin.cc
   ufg_plugin.h
 )
 
-if (MSVC)
+set_target_properties(ufg_plugin PROPERTIES PREFIX "")
+
 target_link_libraries(ufg_plugin
-  convert
-  ${USD_LIBS}
-  arch.lib
+  PRIVATE convert usd_from_gltf::usd_libs
 )
+
+# Resolve the runtime filename USD's plugin loader should reference.
+if (WIN32)
+  set(UFG_PLUGIN_LIBRARY_FILENAME "ufg_plugin.dll")
 elseif (APPLE)
-target_link_libraries(ufg_plugin
-  convert
-  ${USD_LIBS}
-  libarch.dylib
-)
+  set(UFG_PLUGIN_LIBRARY_FILENAME "ufg_plugin.dylib")
 else ()
-target_link_libraries(ufg_plugin
-  convert
-  ${USD_LIBS}
-  libarch.so
-)
+  set(UFG_PLUGIN_LIBRARY_FILENAME "ufg_plugin.so")
 endif ()
 
-# Name it .dll for all platforms to match the reference in plugInfo.json.
-# This is simpler than copying platform-specific plugInfo.json files.
-set_target_properties(ufg_plugin PROPERTIES PREFIX "" SUFFIX ".dll")
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/plugInfo.json.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/plugInfo.json"
+  @ONLY
+)
 
-set_target_properties(ufg_plugin PROPERTIES RESOURCE plugInfo.json)
-
-install(TARGETS ufg_plugin DESTINATION bin/ufg_plugin)
+# Install layout matches USD plugin convention: <plugin_dir>/<name>/resources/plugInfo.json
+install(TARGETS ufg_plugin
+  LIBRARY DESTINATION plugin/usd/ufg_plugin
+  RUNTIME DESTINATION plugin/usd/ufg_plugin
+)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/plugInfo.json"
+  DESTINATION plugin/usd/ufg_plugin/resources
+)
