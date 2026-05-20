@@ -115,6 +115,38 @@ else ()
     find_package(Threads REQUIRED)
     target_link_libraries(ufg_usd_libs INTERFACE Threads::Threads ${CMAKE_DL_LIBS})
   endif ()
+
+  # OpenUSD ≥ 24.05 ships vendored boost::python under pxr/external/boost/python/.
+  # Its detail headers (pulled in via tf/pySafePython.h → vt/value.h → most of
+  # the public USD API) unconditionally #include <pyconfig.h> when USD was built
+  # with PXR_PYTHON_SUPPORT_ENABLED. We only need the Python include path —
+  # libpython itself is resolved transitively through the USD .so files.
+  find_package(Python3 COMPONENTS Interpreter Development QUIET)
+  if (NOT Python3_INCLUDE_DIRS AND Python3_Interpreter_FOUND)
+    # Some slim images ship Python.h but no libpython, which makes the
+    # "Development" component report NOTFOUND even when headers are usable.
+    # Fall back to asking the python interpreter directly.
+    execute_process(
+      COMMAND "${Python3_EXECUTABLE}" -c
+        "import sysconfig; print(sysconfig.get_path('include'))"
+      OUTPUT_VARIABLE _ufg_py_include
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      RESULT_VARIABLE _ufg_py_rc
+    )
+    if (_ufg_py_rc EQUAL 0 AND EXISTS "${_ufg_py_include}/pyconfig.h")
+      set(Python3_INCLUDE_DIRS "${_ufg_py_include}")
+    endif ()
+  endif ()
+  if (Python3_INCLUDE_DIRS)
+    target_include_directories(ufg_usd_libs INTERFACE ${Python3_INCLUDE_DIRS})
+    message(STATUS
+      "OpenUSD: added Python include dirs (${Python3_INCLUDE_DIRS}) for USD headers.")
+  else ()
+    message(WARNING
+      "Python development headers not found. If your OpenUSD install was built "
+      "with PXR_PYTHON_SUPPORT_ENABLED, the build will fail on <pyconfig.h>. "
+      "Install python3-dev or pass -DPython3_ROOT_DIR=<prefix>.")
+  endif ()
 endif ()
 
 # ----- Platform settings -----
