@@ -1080,7 +1080,7 @@ void Converter::CreateStage(const SdfLayerRefPtr& layer,
   UsdPrim prim = cc_.stage->DefinePrim(cc_.root_path, TfToken("Xform"));
   prim.SetAssetInfoByKey(TfToken("name"),
                          VtValue(cc_.root_path.GetElementString()));
-  UsdModelAPI::Apply(prim).SetKind(TfToken("component"));
+  UsdModelAPI(prim).SetKind(TfToken("component"));
   cc_.stage->SetDefaultPrim(prim);
 
   UsdGeomSetStageUpAxis(cc_.stage, UsdGeomTokens->y);
