@@ -24,40 +24,98 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # ----- Locate OpenUSD -----
 #
-# USD 26.05 ships a CMake package config at <prefix>/pxrConfig.cmake. Point
-# USD_DIR at the install prefix (e.g. -DUSD_DIR=/opt/openusd-26.05) or set
-# CMAKE_PREFIX_PATH directly.
-if (DEFINED USD_DIR AND NOT pxr_DIR)
-  set(pxr_DIR "${USD_DIR}" CACHE PATH "USD install prefix" FORCE)
-  list(APPEND CMAKE_PREFIX_PATH "${USD_DIR}")
+# Point USD_DIR at the OpenUSD install prefix (e.g. -DUSD_DIR=/opt/openusd-26.05).
+# Two layouts are supported:
+#
+#   1. "Full" install — contains pxrConfig.cmake. We use find_package(pxr CONFIG)
+#      which sets up the proper imported targets with their transitive deps.
+#
+#   2. "Slim" install — pxrConfig.cmake / cmake/ have been stripped (some
+#      container images do this to save space). We fall back to manually
+#      adding ${USD_DIR}/include and finding the libraries via find_library.
+if (NOT DEFINED USD_DIR AND DEFINED ENV{USD_BUILD_PATH})
+  set(USD_DIR "$ENV{USD_BUILD_PATH}" CACHE PATH "OpenUSD install prefix")
 endif ()
-find_package(pxr CONFIG REQUIRED)
+
+set(_ufg_pxr_config "${USD_DIR}/pxrConfig.cmake")
+set(_ufg_pxr_config_lower "${USD_DIR}/cmake/pxrConfig.cmake")
+if (USD_DIR AND (EXISTS "${_ufg_pxr_config}" OR EXISTS "${_ufg_pxr_config_lower}"))
+  set(UFG_USD_VIA_PACKAGE ON)
+  set(pxr_DIR "${USD_DIR}" CACHE PATH "USD pxrConfig.cmake dir" FORCE)
+  list(APPEND CMAKE_PREFIX_PATH "${USD_DIR}")
+  find_package(pxr CONFIG REQUIRED)
+  message(STATUS "OpenUSD: using pxrConfig.cmake at ${USD_DIR}")
+elseif (USD_DIR AND IS_DIRECTORY "${USD_DIR}/include/pxr" AND IS_DIRECTORY "${USD_DIR}/lib")
+  set(UFG_USD_VIA_PACKAGE OFF)
+  message(STATUS "OpenUSD: pxrConfig.cmake not present at ${USD_DIR}; "
+                 "using fallback include/lib discovery.")
+else ()
+  message(FATAL_ERROR
+    "OpenUSD install not found. Set -DUSD_DIR=<prefix> to a directory that "
+    "contains either pxrConfig.cmake, or include/pxr/ and lib/ subdirectories.")
+endif ()
+
+set(UFG_USD_LIB_DIR "${USD_DIR}/lib")
 
 # RPATH so the binaries can find USD's shared libs on Linux/OSX.
 if (APPLE)
-  list(APPEND CMAKE_INSTALL_RPATH "@loader_path/../lib" "${PXR_CMAKE_DIR}/lib")
+  list(APPEND CMAKE_INSTALL_RPATH "@loader_path/../lib" "${UFG_USD_LIB_DIR}")
 elseif (UNIX)
-  list(APPEND CMAKE_INSTALL_RPATH "$ORIGIN/../lib" "${PXR_CMAKE_DIR}/lib")
+  list(APPEND CMAKE_INSTALL_RPATH "$ORIGIN/../lib" "${UFG_USD_LIB_DIR}")
 endif ()
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+set(CMAKE_BUILD_RPATH_USE_ORIGIN TRUE)
+list(APPEND CMAKE_BUILD_RPATH "${UFG_USD_LIB_DIR}")
 
-# The USD libraries needed across this project. We define an interface target
-# so subdirectories can simply link `usd_from_gltf::usd_libs`.
+# Interface target that bundles every USD library this project needs. Subdirs
+# only have to link `usd_from_gltf::usd_libs`.
 add_library(ufg_usd_libs INTERFACE)
 add_library(usd_from_gltf::usd_libs ALIAS ufg_usd_libs)
-target_link_libraries(ufg_usd_libs INTERFACE
-  arch
-  gf
-  plug
-  sdf
-  tf
-  usd
-  usdGeom
-  usdShade
-  usdSkel
-  usdUtils
-  vt
+
+set(_ufg_usd_libnames
+  arch gf plug sdf tf usd usdGeom usdShade usdSkel usdUtils vt
 )
+
+if (UFG_USD_VIA_PACKAGE)
+  # pxrConfig.cmake registers each library as an imported target with the
+  # short name (e.g. `usd`, `usdGeom`) — link them directly.
+  target_link_libraries(ufg_usd_libs INTERFACE ${_ufg_usd_libnames})
+else ()
+  # Slim install: probe lib/ for the actual filenames. OpenUSD ≥ 24.05 prefixes
+  # its shared libs with `libusd_` on Linux/macOS and `usd_` on Windows; older
+  # versions used the bare name (`libgf.so`, `gf.lib`). We search for both.
+  target_include_directories(ufg_usd_libs INTERFACE "${USD_DIR}/include")
+  foreach (libname IN LISTS _ufg_usd_libnames)
+    find_library(_ufg_lib_${libname}
+      NAMES "usd_${libname}" "${libname}"
+      HINTS "${UFG_USD_LIB_DIR}"
+      NO_DEFAULT_PATH
+    )
+    if (NOT _ufg_lib_${libname})
+      message(FATAL_ERROR
+        "Could not locate OpenUSD library '${libname}' (tried 'usd_${libname}' "
+        "and '${libname}') under ${UFG_USD_LIB_DIR}.")
+    endif ()
+    target_link_libraries(ufg_usd_libs INTERFACE "${_ufg_lib_${libname}}")
+  endforeach ()
+
+  # OpenUSD's headers transitively include TBB headers; depending on the build
+  # we may also need to link tbb explicitly. build_usd.py installs tbb into
+  # ${USD_DIR}/lib alongside the USD libs.
+  find_library(_ufg_lib_tbb
+    NAMES tbb tbb12
+    HINTS "${UFG_USD_LIB_DIR}"
+    NO_DEFAULT_PATH
+  )
+  if (_ufg_lib_tbb)
+    target_link_libraries(ufg_usd_libs INTERFACE "${_ufg_lib_tbb}")
+  endif ()
+
+  if (UNIX)
+    find_package(Threads REQUIRED)
+    target_link_libraries(ufg_usd_libs INTERFACE Threads::Threads ${CMAKE_DL_LIBS})
+  endif ()
+endif ()
 
 # ----- Platform settings -----
 if (MSVC)
