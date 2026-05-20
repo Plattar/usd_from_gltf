@@ -175,6 +175,20 @@ else ()
     target_link_libraries(ufg_usd_libs INTERFACE ${Python3_LIBRARIES})
     message(STATUS "OpenUSD: linking libpython (${Python3_LIBRARIES}).")
   endif ()
+
+  # OpenUSD also ships its own Python wrapper library (libusd_python). USD's
+  # headers reference symbols from it (e.g. boost::python type registrations);
+  # those go unresolved without an explicit link. Probe optionally — it's only
+  # present when PXR_PYTHON_SUPPORT_ENABLED was set during the USD build.
+  find_library(_ufg_lib_usd_python
+    NAMES "usd_python"
+    HINTS "${UFG_USD_LIB_DIR}"
+    NO_DEFAULT_PATH
+  )
+  if (_ufg_lib_usd_python)
+    target_link_libraries(ufg_usd_libs INTERFACE "${_ufg_lib_usd_python}")
+    message(STATUS "OpenUSD: linking libusd_python (${_ufg_lib_usd_python}).")
+  endif ()
 endif ()
 
 # ----- Platform settings -----

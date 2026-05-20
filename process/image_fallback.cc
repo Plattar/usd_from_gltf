@@ -16,6 +16,9 @@
 
 #include "process/image_png.h"
 
+// stb_image is a single-header library; this is the one TU that pulls in the
+// implementation. Other files in this project include stb_image.h headers-only.
+#define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"  // NOLINT: Silence relative path warning.
 
 namespace ufg {
