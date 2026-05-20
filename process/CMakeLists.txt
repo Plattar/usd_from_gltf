@@ -88,7 +88,9 @@ add_library(process
 )
 
 target_include_directories(process
-  PUBLIC ${CMAKE_SOURCE_DIR}
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:include/ufg>
   PRIVATE
     "${STB_IMAGE_INCLUDE_DIR}"
     "${GIFLIB_INCLUDE_DIR}"
@@ -114,4 +116,8 @@ endif ()
 file(GLOB PROCESS_HEADERS "*.h")
 set_target_properties(process PROPERTIES PUBLIC_HEADER "${PROCESS_HEADERS}")
 
-install(TARGETS process EXPORT ufglib DESTINATION lib/ufg PUBLIC_HEADER DESTINATION include/ufg/process)
+install(TARGETS process
+  ARCHIVE DESTINATION lib/ufg
+  LIBRARY DESTINATION lib/ufg
+  PUBLIC_HEADER DESTINATION include/ufg/process
+)

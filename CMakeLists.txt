@@ -150,6 +150,3 @@ add_subdirectory(gltf)
 add_subdirectory(process)
 add_subdirectory(usd_from_gltf)
 add_subdirectory(ufg_plugin)
-
-install(EXPORT ufglib DESTINATION lib/ufg)
-install(FILES ufg-config.cmake DESTINATION .)

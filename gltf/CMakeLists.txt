@@ -51,7 +51,10 @@ add_library(gltf
   image_parsing.h
 )
 
-target_include_directories(gltf PUBLIC ${CMAKE_SOURCE_DIR})
+target_include_directories(gltf PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}>
+  $<INSTALL_INTERFACE:include/ufg>
+)
 
 if (nlohmann_json_FOUND)
   target_link_libraries(gltf PRIVATE nlohmann_json::nlohmann_json)
@@ -62,4 +65,8 @@ endif ()
 file(GLOB GLTF_HEADERS "*.h")
 set_target_properties(gltf PROPERTIES PUBLIC_HEADER "${GLTF_HEADERS}")
 
-install(TARGETS gltf EXPORT ufglib DESTINATION lib/ufg PUBLIC_HEADER DESTINATION include/ufg/gltf)
+install(TARGETS gltf
+  ARCHIVE DESTINATION lib/ufg
+  LIBRARY DESTINATION lib/ufg
+  PUBLIC_HEADER DESTINATION include/ufg/gltf
+)

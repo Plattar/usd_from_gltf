@@ -29,7 +29,10 @@ add_library(convert
   texturator.h
 )
 
-target_include_directories(convert PUBLIC ${CMAKE_SOURCE_DIR})
+target_include_directories(convert PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}>
+  $<INSTALL_INTERFACE:include/ufg>
+)
 
 target_link_libraries(convert
   PUBLIC process usd_from_gltf::usd_libs
@@ -38,4 +41,8 @@ target_link_libraries(convert
 file(GLOB CONVERT_HEADERS "*.h")
 set_target_properties(convert PROPERTIES PUBLIC_HEADER "${CONVERT_HEADERS}")
 
-install(TARGETS convert EXPORT ufglib DESTINATION lib/ufg PUBLIC_HEADER DESTINATION include/ufg/convert)
+install(TARGETS convert
+  ARCHIVE DESTINATION lib/ufg
+  LIBRARY DESTINATION lib/ufg
+  PUBLIC_HEADER DESTINATION include/ufg/convert
+)
